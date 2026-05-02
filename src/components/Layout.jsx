@@ -1,5 +1,4 @@
 import { useState, useContext, useEffect } from 'react';
-import logo from '../assets/logo.png';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -88,7 +87,7 @@ function Layout(props) {
       <Toolbar sx={{ gap: 1 }}>
         <Box
           component="img"
-          src={logo}
+          src="/logo.png"
           sx={{ width: 32, height: 32, borderRadius: '20%' }}
           alt="Logo"
         />
@@ -176,7 +175,7 @@ function Layout(props) {
           <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
             <Box
               component="img"
-              src={logo}
+              src="/logo.png"
               sx={{ width: 28, height: 28, borderRadius: '20%' }}
               alt="Logo"
             />
