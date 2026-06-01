@@ -41,6 +41,7 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 
 import { API_URL, EMPLOYEES } from '../config';
+import { taskService } from '../services/taskService';
 
 dayjs.extend(isBetween);
 
@@ -54,6 +55,11 @@ function Analytics() {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
 
+  const userString = localStorage.getItem('user');
+  const user = userString ? JSON.parse(userString) : null;
+  const position = user?.position?.toLowerCase() || '';
+  const currentUserName = user?.name || '';
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -61,33 +67,61 @@ function Analytics() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      // First fetch team leads
-      const leadsRes = await fetch(`${API_URL}?action=teamlead`);
-      const leadsData = await leadsRes.json();
+      // Fetch all employees dynamically from database
+      const empRes = await fetch(`${API_URL}?action=employees`);
+      const empData = await empRes.json();
       
-      let fullEmployeeList = [...EMPLOYEES];
-      if (leadsData.status === 'success' && leadsData.data) {
-        const leadNames = leadsData.data.map(lead => lead.name);
-        fullEmployeeList = [...new Set([...EMPLOYEES, ...leadNames])];
+      let fullEmployeeList = [];
+      if (empData.status === 'success' && empData.data) {
+        if (position === 'admin') {
+          // Admin sees all non-Admin employees (Team Leads & Developers)
+          fullEmployeeList = empData.data
+            .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+            .map(emp => emp.name);
+        } else if (position === 'team lead' || position === 'teamlead') {
+          // Team Lead sees Developers and themselves
+          fullEmployeeList = empData.data
+            .filter(emp => 
+              (emp.position && emp.position.toLowerCase().includes('developer')) || 
+              emp.name === currentUserName
+            )
+            .map(emp => emp.name);
+        } else if (position === 'developer') {
+          // Developer sees only themselves
+          fullEmployeeList = [currentUserName];
+        } else {
+          // Fallback: all non-admin employees
+          fullEmployeeList = empData.data
+            .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+            .map(emp => emp.name);
+        }
+      }
+      
+      fullEmployeeList = [...new Set(fullEmployeeList)].filter(Boolean);
+      
+      if (fullEmployeeList.length === 0) {
+        fullEmployeeList = [...EMPLOYEES];
       }
       setAllEmployees(fullEmployeeList);
 
-      // Then fetch tasks for everyone
-      const promises = fullEmployeeList.map(name => 
-        fetch(`${API_URL}?name=${name}`).then(res => res.json())
-      );
+      // Fetch tasks for everyone using taskService to leverage local caching and merges
+      const promises = fullEmployeeList.map(async (name) => {
+        try {
+          const mergedTasks = await taskService.getMergedTasks(name);
+          return mergedTasks.map(task => ({
+            ...task,
+            employeeName: name
+          }));
+        } catch (e) {
+          console.error(`Error fetching tasks for ${name}:`, e);
+          return [];
+        }
+      });
       
       const results = await Promise.all(promises);
       let combinedTasks = [];
-      
-      results.forEach((res, index) => {
-        if (res.status === "success" && res.data) {
-          const tasksWithEmployee = res.data.map(task => ({
-            ...task,
-            employeeName: fullEmployeeList[index]
-          }));
-          combinedTasks = [...combinedTasks, ...tasksWithEmployee];
-        }
+      results.forEach(tasks => {
+        combinedTasks = [...combinedTasks, ...tasks];
       });
       
       setAllTasks(combinedTasks);

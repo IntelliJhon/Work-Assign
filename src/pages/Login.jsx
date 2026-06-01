@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 import {
   Box,
   Card,
@@ -34,7 +35,7 @@ const float = keyframes`
   100% { transform: translateY(0px); }
 `;
 
-const API_URL = 'https://script.google.com/macros/s/AKfycby5GPq5gVEvU0wtUPrUP5na6th57DEhSDF1jFdLN0grXej9E4vEGYfI7FAhNjezJzPI/exec';
+
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -46,7 +47,7 @@ const Login = () => {
 
   const navigate = useNavigate();
 
-  // Bonus: Auto-redirect if already logged in
+  // Auto-redirect if already logged in
   useEffect(() => {
     const user = localStorage.getItem('user');
     if (user) {
@@ -55,7 +56,6 @@ const Login = () => {
   }, [navigate]);
 
   const validateEmail = (email) => {
-    // Basic email validation regex
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
@@ -70,8 +70,6 @@ const Login = () => {
     setError('');
 
     try {
-      // Sometimes Google Apps Script has CORS preflight issues with application/json.
-      // However, sticking strictly to the requested headers.
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
@@ -79,8 +77,8 @@ const Login = () => {
         },
         body: JSON.stringify({
           action: 'login',
-          email: email,
-          password: password,
+          email: email.trim(),
+          password: password.trim(),
         }),
       });
 
@@ -88,11 +86,13 @@ const Login = () => {
 
       if (data.status === 'success') {
         // Store user info in localStorage
-        localStorage.setItem('user', JSON.stringify({ email, ...data.user }));
+        localStorage.setItem('user', JSON.stringify({
+          email: email.trim(),
+          ...data.user
+        }));
         // Redirect to "/dashboard"
         navigate('/dashboard');
       } else {
-        // If response.status === "error", show error message below input
         setError(data.message || 'Invalid credentials. Please try again.');
       }
     } catch (err) {
@@ -158,7 +158,7 @@ const Login = () => {
                 mb: { xs: 1.5, md: 3 },
                 animation: `${float} 4s ease-in-out infinite`,
                 backdropFilter: 'blur(10px)',
-                display: { xs: 'none', sm: 'flex' } // Hide icon on extra small screens to save vertical space
+                display: { xs: 'none', sm: 'flex' }
               }}
             >
               <LoginIcon fontSize="large" sx={{ color: 'white' }} />

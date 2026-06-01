@@ -19,7 +19,9 @@ import {
   useTheme,
   InputAdornment,
   FilledInput,
-  Stack
+  Stack,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -40,8 +42,28 @@ function AssignWork() {
     priority: 'Normal',
     workType: 'Chat Bot',
     comment: '',
-    clientName: ''
+    clientName: '',
+    recurrenceType: 'None'
   });
+
+  const calculateDeadline = (type) => {
+    const target = new Date();
+    if (type === 'Daily') {
+      target.setDate(target.getDate() + 1); // Tomorrow!
+    } else if (type === 'Weekly') {
+      target.setDate(target.getDate() + 7); // Next week
+    } else if (type === 'Biweekly') {
+      target.setDate(target.getDate() + 14); // 2 weeks
+    } else if (type === 'Monthly') {
+      target.setMonth(target.getMonth() + 1); // Next month (same day)
+    } else {
+      return '';
+    }
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, '0');
+    const d = String(target.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -51,28 +73,41 @@ function AssignWork() {
   const position = user?.position?.toLowerCase() || '';
   const isAdmin = position === 'admin';
 
-  const [employeeList, setEmployeeList] = useState(isAdmin ? [] : EMPLOYEES);
+  const [employeeList, setEmployeeList] = useState([]);
 
   useEffect(() => {
     if (isAdmin) {
-      // Admin assigns work ONLY to Team Leads
-      fetch(`${API_URL}?action=teamlead`)
+      // Admin assigns work to all non-Admin employees (Team Leads & Developers)
+      fetch(`${API_URL}?action=employees`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.data) {
-            const leadNames = data.data.map(lead => lead.name);
-            setEmployeeList([...new Set(leadNames)]);
-            if (leadNames.length > 0) {
-              setFormData(prev => ({ ...prev, employee: leadNames[0] }));
+            const list = data.data
+              .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+              .map(emp => emp.name);
+            setEmployeeList([...new Set(list)]);
+            if (list.length > 0) {
+              setFormData(prev => ({ ...prev, employee: list[0] }));
             }
           }
         })
-        .catch(err => console.error("Failed to fetch team leads:", err));
+        .catch(err => console.error("Failed to fetch employees for assignment:", err));
     } else {
-      // Team Leads assign work ONLY to Developers (EMPLOYEES), handled by initial state
-      if (EMPLOYEES.length > 0) {
-        setFormData(prev => ({ ...prev, employee: EMPLOYEES[0] }));
-      }
+      // Team Leads assign work ONLY to Developers from Member_Details
+      fetch(`${API_URL}?action=employees`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'success' && data.data) {
+            const devs = data.data
+              .filter(emp => emp.position && emp.position.toLowerCase().includes('developer'))
+              .map(emp => emp.name);
+            setEmployeeList([...new Set(devs)]);
+            if (devs.length > 0) {
+              setFormData(prev => ({ ...prev, employee: devs[0] }));
+            }
+          }
+        })
+        .catch(err => console.error("Failed to fetch developers:", err));
     }
   }, [isAdmin]);
 
@@ -102,10 +137,15 @@ function AssignWork() {
         deadline: formData.deadline,
         estTime: formData.estTime,
         comment: formData.comment,
-        client: formData.clientName
+        client: formData.clientName,
+        recurrenceType: formData.recurrenceType,
+        isMonthlyRecurring: String(formData.recurrenceType === 'Monthly'),
+        parentRecurringTaskId: ''
       });
 
       await fetch(`${API_URL}?${params.toString()}`, { mode: 'no-cors' });
+
+
 
       setLoading(false);
       setSnackbar({ open: true, message: 'Work assignment sent successfully!', severity: 'success' });
@@ -118,7 +158,8 @@ function AssignWork() {
         priority: 'Normal',
         workType: 'Chat Bot',
         comment: '',
-        clientName: ''
+        clientName: '',
+        recurrenceType: 'None'
       });
     } catch (error) {
       setLoading(false);
@@ -330,7 +371,35 @@ function AssignWork() {
                       name="deadline"
                       value={formData.deadline}
                       onChange={handleChange}
+                      disabled={formData.recurrenceType !== 'None'}
+                      inputProps={{ readOnly: formData.recurrenceType !== 'None' }}
                     />
+                  </FormControl>
+                  <FormControl fullWidth variant="filled">
+                    <InputLabel>Recurrence Type</InputLabel>
+                    <Select
+                      name="recurrenceType"
+                      value={formData.recurrenceType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData(prev => {
+                          const updated = {
+                            ...prev,
+                            recurrenceType: val
+                          };
+                          if (val !== 'None') {
+                            updated.deadline = calculateDeadline(val);
+                          }
+                          return updated;
+                        });
+                      }}
+                    >
+                      <MenuItem value="None">None (Non-recurring)</MenuItem>
+                      <MenuItem value="Daily">Daily</MenuItem>
+                      <MenuItem value="Weekly">Weekly</MenuItem>
+                      <MenuItem value="Biweekly">Biweekly</MenuItem>
+                      <MenuItem value="Monthly">Monthly</MenuItem>
+                    </Select>
                   </FormControl>
                   <TextField
                     fullWidth

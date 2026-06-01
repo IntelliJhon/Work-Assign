@@ -17,7 +17,10 @@ import {
   useTheme,
   InputAdornment,
   IconButton,
-  Paper
+  Paper,
+  Button,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -29,6 +32,10 @@ import CommentIcon from '@mui/icons-material/Comment';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import BusinessIcon from '@mui/icons-material/Business';
 import TimerIcon from '@mui/icons-material/Timer';
+import EditIcon from '@mui/icons-material/Edit';
+
+import { taskService } from '../services/taskService';
+import UpdateTaskModal from '../components/UpdateTaskModal';
 
 function Dashboard() {
   const theme = useTheme();
@@ -38,30 +45,55 @@ function Dashboard() {
   const user = userString ? JSON.parse(userString) : null;
   const isDeveloper = user?.position?.toLowerCase() === 'developer';
 
-  const [employee, setEmployee] = useState(user?.name || "Akash");
+  const [employee, setEmployee] = useState(user?.name || "");
   const [loading, setLoading] = useState(false);
-  const [employeeList, setEmployeeList] = useState(["Akash", "Febin", "Sajini"]);
+  const [employeeList, setEmployeeList] = useState(user?.name ? [user.name] : []);
 
-  // Fetch team leads for the dropdown
+  // Task Update States
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  // Fetch employees dynamically for the dropdown
   useEffect(() => {
     if (!isDeveloper) {
-      fetch(`${API_URL}?action=teamlead`)
+      fetch(`${API_URL}?action=employees`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.data) {
-            const leadNames = data.data.map(lead => lead.name);
-            setEmployeeList([...new Set(["Akash", "Febin", "Sajini", ...leadNames])]);
-            
-            // Default to first Team Lead if Admin
             const position = user?.position?.toLowerCase() || '';
-            if (position === 'admin' && leadNames.length > 0) {
-              setEmployee(leadNames[0]);
+            let filtered = [];
+            if (position === 'admin') {
+              // Admin sees all non-Admin employees (Team Leads & Developers)
+              filtered = data.data
+                .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+                .map(emp => emp.name);
+            } else {
+              // Team Lead sees Developers and themselves
+              filtered = data.data
+                .filter(emp => 
+                  (emp.position && emp.position.toLowerCase().includes('developer')) || 
+                  emp.name === user?.name
+                )
+                .map(emp => emp.name);
+            }
+            const uniqueList = [...new Set(filtered)];
+            setEmployeeList(uniqueList);
+            
+            // Set initial selected employee
+            if (uniqueList.length > 0) {
+              if (user?.name && uniqueList.includes(user.name)) {
+                setEmployee(user.name);
+              } else {
+                setEmployee(uniqueList[0]);
+              }
             }
           }
         })
-        .catch(err => console.error("Failed to fetch team leads:", err));
+        .catch(err => console.error("Failed to fetch employees:", err));
     }
-  }, [isDeveloper, user?.position]);
+  }, [isDeveloper, user?.position, user?.name]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,27 +107,59 @@ function Dashboard() {
 
   const fetchTasks = async (name) => {
     if (GlobalCache[name]) {
-      setTasks(GlobalCache[name]);
+      const localUpdates = taskService.getLocalUpdates();
+      const mergedCached = GlobalCache[name].map(t => {
+        const up = localUpdates[t.taskId];
+        return up ? { ...t, ...up } : t;
+      });
+      setTasks(mergedCached);
     } else {
       setLoading(true);
     }
     
     try {
-      const res = await fetch(`${API_URL}?name=${name}`);
-      const data = await res.json();
-
-      if (data.status === "success") {
-        GlobalCache[name] = data.data;
-        setTasks(data.data);
-      } else {
-        console.error(data.message);
-        if (!GlobalCache[name]) setTasks([]);
-      }
+      const mergedTasks = await taskService.getMergedTasks(name);
+      GlobalCache[name] = mergedTasks;
+      setTasks(mergedTasks);
     } catch (err) {
       console.error("Fetch error:", err);
       if (!GlobalCache[name]) setTasks([]);
     }
     setLoading(false);
+  };
+
+  const handleUpdateSubmit = async (updateData) => {
+    setIsSubmittingUpdate(true);
+    try {
+      const result = await taskService.updateTask(
+        updateData.taskId,
+        updateData.employeeName,
+        updateData.status,
+        updateData.actualTime,
+        updateData.comment
+      );
+      
+      if (result.status === 'success') {
+        setToast({
+          open: true,
+          message: result.message,
+          severity: result.apiSuccess ? 'success' : 'info'
+        });
+        setIsUpdateModalOpen(false);
+        fetchTasks(employee);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({
+        open: true,
+        message: err.message || 'Failed to update task progress',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmittingUpdate(false);
+    }
   };
 
   // Filter and Sort tasks based on search and status
@@ -357,8 +421,17 @@ function Dashboard() {
                       </Box>
 
                       <Box sx={{ mt: 'auto', pt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${theme.palette.divider}` }}>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                           <Chip label={t.workType} size="small" variant="filled" sx={{ bgcolor: 'action.selected', fontWeight: 600 }} />
+                          {t.recurrenceType && t.recurrenceType !== 'None' && (
+                            <Chip 
+                              label={`${t.recurrenceType} Recurring`} 
+                              size="small" 
+                              color="primary"
+                              variant="outlined" 
+                              sx={{ fontWeight: 800 }} 
+                            />
+                          )}
                         </Box>
                         
                         <Chip 
@@ -367,7 +440,7 @@ function Dashboard() {
                             t.status === 'In_Progress' ? <AutorenewIcon style={{ color: 'inherit' }} /> : 
                             <PendingIcon style={{ color: 'inherit' }} />
                           }
-                          label={t.status} 
+                          label={t.status === 'In_Progress' ? 'In Progress' : t.status} 
                           size="small"
                           color={
                             t.status === 'Completed' ? 'success' : 
@@ -375,6 +448,21 @@ function Dashboard() {
                           }
                           sx={{ fontWeight: 800, borderRadius: 1 }}
                         />
+                      </Box>
+                      <Box sx={{ mt: 2 }}>
+                        <Button 
+                          fullWidth 
+                          variant="outlined" 
+                          color="primary" 
+                          startIcon={<EditIcon />}
+                          onClick={() => {
+                            setSelectedTask({ ...t, employeeName: employee });
+                            setIsUpdateModalOpen(true);
+                          }}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          Update Progress
+                        </Button>
                       </Box>
                     </CardContent>
                   </Card>
@@ -384,6 +472,31 @@ function Dashboard() {
           )}
         </Box>
       )}
+
+      {/* Update Progress Modal */}
+      <UpdateTaskModal
+        task={selectedTask}
+        open={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        onSubmit={handleUpdateSubmit}
+        isSubmitting={isSubmittingUpdate}
+      />
+
+      {/* Toast notifications */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={6000}
+        onClose={() => setToast(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={() => setToast(prev => ({ ...prev, open: false }))} 
+          severity={toast.severity} 
+          sx={{ width: '100%', borderRadius: 2 }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
