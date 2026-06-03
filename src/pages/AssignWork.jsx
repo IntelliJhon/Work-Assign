@@ -40,7 +40,7 @@ function AssignWork() {
     deadline: '',
     estTime: '',
     priority: 'Normal',
-    workType: 'Chat Bot',
+    workType: 'Accounting',
     comment: '',
     clientName: '',
     recurrenceType: 'None'
@@ -71,19 +71,19 @@ function AssignWork() {
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : null;
   const position = user?.position?.toLowerCase() || '';
-  const isAdmin = position === 'admin';
+  const isDirector = position === 'director';
 
   const [employeeList, setEmployeeList] = useState([]);
 
   useEffect(() => {
-    if (isAdmin) {
-      // Admin assigns work to all non-Admin employees (Team Leads & Developers)
+    if (isDirector) {
+      // Director assigns work to all non-Director employees (Team Leads, HR, Associates)
       fetch(`${API_URL}?action=employees`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.data) {
             const list = data.data
-              .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+              .filter(emp => emp.position && emp.position.toLowerCase() !== 'director')
               .map(emp => emp.name);
             setEmployeeList([...new Set(list)]);
             if (list.length > 0) {
@@ -93,23 +93,23 @@ function AssignWork() {
         })
         .catch(err => console.error("Failed to fetch employees for assignment:", err));
     } else {
-      // Team Leads assign work ONLY to Developers from Member_Details
+      // Team Leads assign work ONLY to Associates
       fetch(`${API_URL}?action=employees`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.data) {
-            const devs = data.data
-              .filter(emp => emp.position && emp.position.toLowerCase().includes('developer'))
+            const associates = data.data
+              .filter(emp => emp.position && emp.position.toLowerCase().includes('associate'))
               .map(emp => emp.name);
-            setEmployeeList([...new Set(devs)]);
-            if (devs.length > 0) {
-              setFormData(prev => ({ ...prev, employee: devs[0] }));
+            setEmployeeList([...new Set(associates)]);
+            if (associates.length > 0) {
+              setFormData(prev => ({ ...prev, employee: associates[0] }));
             }
           }
         })
-        .catch(err => console.error("Failed to fetch developers:", err));
+        .catch(err => console.error("Failed to fetch associates:", err));
     }
-  }, [isAdmin]);
+  }, [isDirector]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -158,7 +158,7 @@ function AssignWork() {
         deadline: '',
         estTime: '',
         priority: 'Normal',
-        workType: 'Chat Bot',
+        workType: 'Accounting',
         comment: '',
         clientName: '',
         recurrenceType: 'None'
@@ -290,37 +290,41 @@ function AssignWork() {
                         </Box>
                       )}
                     >
-                      <MenuItem value="Chat Bot">
+                      <MenuItem value="Accounting">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Chat Bot
+                        Accounting
                       </MenuItem>
-                      <MenuItem value="Website">
+                      <MenuItem value="Bookkeeping">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Website
+                        Bookkeeping
                       </MenuItem>
-                      <MenuItem value="Payment Gateway">
+                      <MenuItem value="Consultancy">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Payment Gateway
+                        Consultancy
                       </MenuItem>
-                      <MenuItem value="Verification">
+                      <MenuItem value="Internal Audit">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Verification
+                        Internal Audit
                       </MenuItem>
-                      <MenuItem value="PDD">
+                      <MenuItem value="Risk Assessment">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        PDD
+                        Risk Assessment
                       </MenuItem>
-                      <MenuItem value="SDD">
+                      <MenuItem value="Vat">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        SDD
+                        Vat
                       </MenuItem>
-                      <MenuItem value="Client Meeting">
+                      <MenuItem value="Self Assessment">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Client Meeting
+                        Self Assessment
                       </MenuItem>
-                      <MenuItem value="Proposal">
+                      <MenuItem value="Incorporation">
                         <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                        Proposal
+                        Incorporation
+                      </MenuItem>
+                      <MenuItem value="Tax Advisory/Returns">
+                        <CategoryIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                        Tax Advisory/Returns
                       </MenuItem>
                     </Select>
                   </FormControl>
@@ -373,8 +377,8 @@ function AssignWork() {
                       name="deadline"
                       value={formData.deadline}
                       onChange={handleChange}
-                      disabled={formData.recurrenceType !== 'None'}
-                      inputProps={{ readOnly: formData.recurrenceType !== 'None' }}
+                      disabled={formData.recurrenceType !== 'None' && formData.recurrenceType !== 'Monthly'}
+                      inputProps={{ readOnly: formData.recurrenceType !== 'None' && formData.recurrenceType !== 'Monthly' }}
                     />
                   </FormControl>
                   <FormControl fullWidth variant="filled">
@@ -389,8 +393,14 @@ function AssignWork() {
                             ...prev,
                             recurrenceType: val
                           };
-                          if (val !== 'None') {
+                          if (val !== 'None' && val !== 'Monthly') {
                             updated.deadline = calculateDeadline(val);
+                          } else if (val === 'Monthly' && !prev.deadline) {
+                            const today = new Date();
+                            const y = today.getFullYear();
+                            const m = String(today.getMonth() + 1).padStart(2, '0');
+                            const d = String(today.getDate()).padStart(2, '0');
+                            updated.deadline = `${y}-${m}-${d}`;
                           }
                           return updated;
                         });

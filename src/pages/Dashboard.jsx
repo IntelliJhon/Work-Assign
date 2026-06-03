@@ -43,7 +43,8 @@ function Dashboard() {
   
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : null;
-  const isDeveloper = user?.position?.toLowerCase() === 'developer';
+  const position = user?.position?.toLowerCase() || '';
+  const isTaskAssigner = position === 'director' || position === 'team-lead' || position === 'team lead';
 
   const [employee, setEmployee] = useState(user?.name || "");
   const [loading, setLoading] = useState(false);
@@ -57,23 +58,22 @@ function Dashboard() {
 
   // Fetch employees dynamically for the dropdown
   useEffect(() => {
-    if (!isDeveloper) {
+    if (isTaskAssigner) {
       fetch(`${API_URL}?action=employees`)
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.data) {
-            const position = user?.position?.toLowerCase() || '';
             let filtered = [];
-            if (position === 'admin') {
-              // Admin sees all non-Admin employees (Team Leads & Developers)
+            if (position === 'director') {
+              // Director sees all non-Director employees (Team Leads, HR, Associates)
               filtered = data.data
-                .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+                .filter(emp => emp.position && emp.position.toLowerCase() !== 'director')
                 .map(emp => emp.name);
             } else {
-              // Team Lead sees Developers and themselves
+              // Team Lead sees Associates and themselves
               filtered = data.data
                 .filter(emp => 
-                  (emp.position && emp.position.toLowerCase().includes('developer')) || 
+                  (emp.position && emp.position.toLowerCase().includes('associate')) || 
                   emp.name === user?.name
                 )
                 .map(emp => emp.name);
@@ -93,7 +93,7 @@ function Dashboard() {
         })
         .catch(err => console.error("Failed to fetch employees:", err));
     }
-  }, [isDeveloper, user?.position, user?.name]);
+  }, [isTaskAssigner, position, user?.name]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -221,7 +221,7 @@ function Dashboard() {
           <IconButton onClick={() => fetchTasks(employee)} color="primary" sx={{ bgcolor: 'background.paper', border: `1px solid ${theme.palette.divider}` }}>
             <RefreshIcon />
           </IconButton>
-          {!isDeveloper && (
+          {isTaskAssigner && (
             <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
               <InputLabel>Employee</InputLabel>
               <Select
@@ -378,7 +378,7 @@ function Dashboard() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: isOverdue || isToday ? 'error.main' : 'text.secondary' }}>
                           <CalendarMonthIcon fontSize="small" />
                           <Typography variant="body2" sx={{ fontWeight: isOverdue || isToday ? 600 : 400 }}>
-                            {t.deadline || 'No deadline'}
+                            {t.deadline ? dayjs(t.deadline).format('DD/MM/YYYY') : 'No deadline'}
                             {isToday && " (Today)"}
                           </Typography>
                         </Box>

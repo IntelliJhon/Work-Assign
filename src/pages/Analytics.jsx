@@ -73,26 +73,26 @@ function Analytics() {
       
       let fullEmployeeList = [];
       if (empData.status === 'success' && empData.data) {
-        if (position === 'admin') {
-          // Admin sees all non-Admin employees (Team Leads & Developers)
+        if (position === 'director') {
+          // Director sees all non-Director employees (Team Leads, HR, Associates)
           fullEmployeeList = empData.data
-            .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+            .filter(emp => emp.position && emp.position.toLowerCase() !== 'director')
             .map(emp => emp.name);
-        } else if (position === 'team lead' || position === 'teamlead') {
-          // Team Lead sees Developers and themselves
+        } else if (position === 'team-lead' || position === 'team lead') {
+          // Team Lead sees Associates and themselves
           fullEmployeeList = empData.data
             .filter(emp => 
-              (emp.position && emp.position.toLowerCase().includes('developer')) || 
+              (emp.position && emp.position.toLowerCase().includes('associate')) || 
               emp.name === currentUserName
             )
             .map(emp => emp.name);
-        } else if (position === 'developer') {
-          // Developer sees only themselves
+        } else if (position === 'associate') {
+          // Associate sees only themselves
           fullEmployeeList = [currentUserName];
         } else {
-          // Fallback: all non-admin employees
+          // Fallback: all non-director employees
           fullEmployeeList = empData.data
-            .filter(emp => emp.position && emp.position.toLowerCase() !== 'admin')
+            .filter(emp => emp.position && emp.position.toLowerCase() !== 'director')
             .map(emp => emp.name);
         }
       }

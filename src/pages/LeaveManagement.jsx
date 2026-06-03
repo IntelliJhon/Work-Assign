@@ -53,8 +53,10 @@ function LeaveManagement() {
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : null;
   const position = user?.position?.toLowerCase() || '';
-  const isTeamLead = position.includes('team-lead') || position.includes('team lead');
-  const isAdmin = position === 'admin';
+  const isAssociate = position === 'associate';
+  const isTeamLead = position === 'team-lead' || position === 'team lead';
+  const isHR = position === 'hr';
+  const isDirector = position === 'director';
 
   // Form State
   const [formData, setFormData] = useState({
@@ -75,33 +77,30 @@ function LeaveManagement() {
 
   const fetchLeaves = async () => {
     try {
-      // Fetch Team Leads to know who is a lead
-      const tlRes = await fetch(`${API_URL}?action=teamlead`);
-      const tlData = await tlRes.json();
-      const tlEmails = tlData.status === 'success' && tlData.data ? tlData.data.map(lead => lead.email) : [];
-
       const res = await fetch(`${API_URL}?action=getleaves`);
       const result = await res.json();
       if (result.status === 'success') {
         const data = result.data || [];
         
-        // Developer/TL sees their own leaves
-        if (!isAdmin) {
+        // Non-director users see their own leaves
+        if (!isDirector) {
           setLeaves(data.filter(l => l.email === user.email));
         }
 
-        // Team Leads / Admins see pending approvals
-        if (isAdmin) {
+        // Director sees all leaves and pending approvals escalated from HR
+        if (isDirector) {
           setAllLeaves(data);
-          // Admin sees Team Lead leaves directly, but Developer leaves only after TL approval
-          setPendingApprovals(data.filter(l => {
-            if (l.adminStatus !== 'Pending') return false;
-            if (tlEmails.includes(l.email)) return true; // It's a Team Lead leave
-            return l.tlStatus === 'Approved'; // It's a Developer leave
-          }));
-        } else if (isTeamLead) {
-          // Team Lead sees pending requests, but NOT their own!
-          setPendingApprovals(data.filter(l => l.tlStatus === 'Pending' && l.email !== user.email));
+          setPendingApprovals(data.filter(l => 
+            l.directorStatus === 'Pending' && 
+            l.hrStatus === 'Approved' && 
+            l.email !== user.email
+          ));
+        } else if (isHR) {
+          // HR sees pending requests from Associates and Team Leads
+          setPendingApprovals(data.filter(l => 
+            l.hrStatus === 'Pending' && 
+            l.email !== user.email
+          ));
         }
       }
     } catch (err) {
@@ -140,7 +139,7 @@ function LeaveManagement() {
         day: formData.dayType,
         customDate: formData.customDate,
         priority: formData.priority,
-        tlStatus: isTeamLead ? "Approved" : "Pending"
+        hrStatus: (isHR || isDirector) ? "Approved" : "Pending"
       })
     })
     .then(res => res.json())
@@ -158,7 +157,7 @@ function LeaveManagement() {
   };
 
   const handleAction = (id, actionStatus) => {
-    const actionName = isAdmin ? 'approveByAdmin' : 'approveByLead';
+    const actionName = isDirector ? 'approveByDirector' : 'approveByHR';
     
     fetch(API_URL, {
       method: 'POST',
@@ -196,7 +195,7 @@ function LeaveManagement() {
           Leave Management
         </Typography>
         <Typography variant="body1" color="textSecondary">
-          {isAdmin 
+          {isDirector 
             ? "Review and manage employee leave applications across the organization" 
             : "Apply for leave and track your application status"}
         </Typography>
@@ -204,8 +203,8 @@ function LeaveManagement() {
 
       <Grid container rowSpacing={{ xs: 4, md: 4 }} columnSpacing={{ xs: 0, md: 4 }} justifyContent="center">
         {/* Apply Leave Form */}
-        <Grid item xs={12} md={isAdmin ? 12 : 4} sx={{ minWidth: 0, width: '100%' }}>
-          {!isAdmin && (
+        <Grid item xs={12} md={isDirector ? 12 : 4} sx={{ minWidth: 0, width: '100%' }}>
+          {!isDirector && (
             <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3, md: 4 }, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper' }}>
               <Typography variant="h5" sx={{ mb: { xs: 2, md: 3 }, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, fontSize: { xs: '1.25rem', md: '1.5rem' } }}>
                 <EventIcon color="primary" /> Apply for Leave
@@ -284,11 +283,11 @@ function LeaveManagement() {
         </Grid>
 
         {/* Right Column: History & Approvals */}
-        <Grid item xs={12} md={isAdmin ? 12 : 8} sx={{ minWidth: 0, width: '100%' }}>
+        <Grid item xs={12} md={isDirector ? 12 : 8} sx={{ minWidth: 0, width: '100%' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 4 }, minWidth: 0 }}>
             
             {/* Team Lead Approvals Section */}
-            {(isTeamLead || isAdmin) && (
+            {(isHR || isDirector) && (
               <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3, md: 4 }, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper', overflow: 'hidden' }}>
                 <Typography variant="h5" sx={{ mb: { xs: 2, md: 3 }, fontWeight: 700, fontSize: { xs: '1.25rem', md: '1.5rem' } }}>Pending Approvals</Typography>
                 <TableContainer sx={{ maxHeight: 440, overflowX: 'auto', width: '100%' }}>
@@ -333,7 +332,7 @@ function LeaveManagement() {
             )}
 
             {/* All Leave History Section for Admin */}
-            {isAdmin && (
+            {isDirector && (
               <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3, md: 4 }, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper', overflow: 'hidden' }}>
                 <Typography variant="h5" sx={{ mb: { xs: 2, md: 3 }, fontWeight: 700, fontSize: { xs: '1.25rem', md: '1.5rem' } }}>Organization Leave History</Typography>
                 <TableContainer sx={{ maxHeight: 440, overflowX: 'auto', width: '100%' }}>
@@ -344,8 +343,8 @@ function LeaveManagement() {
                         <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Reason</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>TL Status</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Admin Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>HR Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Director Status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody sx={{ '& .MuiTableCell-root': { fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}>
@@ -362,8 +361,8 @@ function LeaveManagement() {
                           </TableCell>
                           <TableCell>{leave.reason}</TableCell>
                           <TableCell>{leave.dayType}</TableCell>
-                          <TableCell>{getStatusChip(leave.tlStatus)}</TableCell>
-                          <TableCell>{getStatusChip(leave.adminStatus)}</TableCell>
+                          <TableCell>{getStatusChip(leave.hrStatus)}</TableCell>
+                          <TableCell>{getStatusChip(leave.directorStatus)}</TableCell>
                         </TableRow>
                       )) : (
                         <TableRow><TableCell colSpan={6} align="center">No leave history found.</TableCell></TableRow>
@@ -375,7 +374,7 @@ function LeaveManagement() {
             )}
 
             {/* Leave History Section */}
-            {!isAdmin && (
+            {!isDirector && (
               <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3, md: 4 }, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper', overflow: 'hidden' }}>
                 <Typography variant="h5" sx={{ mb: { xs: 2, md: 3 }, fontWeight: 700, fontSize: { xs: '1.25rem', md: '1.5rem' } }}>My Leave History</Typography>
                 <TableContainer sx={{ maxHeight: 440, overflowX: 'auto', width: '100%' }}>
@@ -386,8 +385,8 @@ function LeaveManagement() {
                         <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Reason</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>TL Status</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Admin Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>HR Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Director Status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody sx={{ '& .MuiTableCell-root': { fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}>
@@ -404,8 +403,8 @@ function LeaveManagement() {
                           </TableCell>
                           <TableCell>{leave.reason}</TableCell>
                           <TableCell>{leave.dayType}</TableCell>
-                          <TableCell>{getStatusChip(leave.tlStatus)}</TableCell>
-                          <TableCell>{getStatusChip(leave.adminStatus)}</TableCell>
+                          <TableCell>{getStatusChip(leave.hrStatus)}</TableCell>
+                          <TableCell>{getStatusChip(leave.directorStatus)}</TableCell>
                         </TableRow>
                       )) : (
                         <TableRow><TableCell colSpan={6} align="center">No leave history found.</TableCell></TableRow>

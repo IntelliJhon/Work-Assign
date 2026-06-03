@@ -144,7 +144,7 @@ function Layout(props) {
             id: task.taskId,
             employeeName: user.name,
             title: "New Task Assigned",
-            message: `Task "${task.workName || 'Unnamed Task'}" has been assigned to you. Deadline: ${task.deadline || 'No Deadline'}`,
+            message: `Task "${task.workName || 'Unnamed Task'}" has been assigned to you. Deadline: ${task.deadline ? dayjs(task.deadline).format('DD/MM/YYYY') : 'No Deadline'}`,
             status: "Unread",
             timestamp: timestamp
           });
@@ -244,7 +244,7 @@ function Layout(props) {
     { text: 'Leave Management', icon: <EventNoteIcon />, path: '/leave' },
   ];
 
-  if (position === 'admin') {
+  if (position === 'director') {
     menuItems.push({ text: 'Assign Work', icon: <AssignmentIcon />, path: '/assign' });
     menuItems.push({ text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' });
   } else if (position === 'team-lead' || position === 'team lead') {
@@ -259,12 +259,12 @@ function Layout(props) {
     }
 
     const path = location.pathname;
-    const isDeveloper = position === 'developer';
-    const isTeamLead = position === 'team-lead' || position === 'team lead';
+    const canAssign = position === 'director' || position === 'team-lead' || position === 'team lead';
+    const canSeeAnalytics = position === 'director';
 
-    if (isDeveloper && (path === '/assign' || path === '/analytics')) {
+    if (path === '/assign' && !canAssign) {
       navigate('/dashboard');
-    } else if (isTeamLead && path === '/analytics') {
+    } else if (path === '/analytics' && !canSeeAnalytics) {
       navigate('/dashboard');
     }
   }, [location.pathname, position, navigate, user]);
