@@ -274,12 +274,12 @@ function Layout(props) {
       <Toolbar sx={{ gap: 1 }}>
         <Box
           component="img"
-          src="/logo.png"
+          src="/logo.jpeg"
           sx={{ width: 32, height: 32, borderRadius: '20%' }}
           alt="Logo"
         />
         <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          IntelliJohn
+          Finbook Global
         </Typography>
       </Toolbar>
       <Divider />
@@ -362,12 +362,12 @@ function Layout(props) {
           <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
             <Box
               component="img"
-              src="/logo.png"
+              src="/logo.jpeg"
               sx={{ width: 28, height: 28, borderRadius: '20%' }}
               alt="Logo"
             />
             <Typography variant="h6" noWrap sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '1.1rem' }}>
-              IntelliJohn
+              Finbook Global
             </Typography>
           </Box>
 

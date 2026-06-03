@@ -164,7 +164,7 @@ const Login = () => {
               <LoginIcon fontSize="large" sx={{ color: 'white' }} />
             </Box>
             <Typography variant="h3" fontWeight="900" gutterBottom sx={{ fontSize: { xs: '2rem', md: '3rem' }, textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-              Welcome to IntelliJohn
+              Welcome to Finbook Global
             </Typography>
             <Typography variant="h6" sx={{ opacity: 0.9, lineHeight: 1.5, fontWeight: 300, fontSize: { xs: '1rem', md: '1.25rem' } }}>
               Your complete solution for managing tasks efficiently.
