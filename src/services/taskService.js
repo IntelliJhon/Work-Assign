@@ -256,6 +256,9 @@ export const taskService = {
 
         // Speculatively call backend assign API for the next task
         try {
+          const userStr = localStorage.getItem('user');
+          const user = userStr ? JSON.parse(userStr) : null;
+          
           const assignParams = new URLSearchParams({
             action: 'assign',
             name: employeeName,
@@ -267,7 +270,9 @@ export const taskService = {
             client: taskToUpdate.client || "",
             recurrenceType: recurrenceType,
             isMonthlyRecurring: String(recurrenceType === 'Monthly'),
-            parentRecurringTaskId: taskId
+            parentRecurringTaskId: taskId,
+            assignedBy: user?.name || 'System',
+            assignedByEmail: user?.email || ''
           });
           fetch(`${API_URL}?${assignParams.toString()}`, { mode: 'no-cors' });
         } catch (e) {

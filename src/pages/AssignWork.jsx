@@ -140,7 +140,9 @@ function AssignWork() {
         client: formData.clientName,
         recurrenceType: formData.recurrenceType,
         isMonthlyRecurring: String(formData.recurrenceType === 'Monthly'),
-        parentRecurringTaskId: ''
+        parentRecurringTaskId: '',
+        assignedBy: user?.name || '',
+        assignedByEmail: user?.email || ''
       });
 
       await fetch(`${API_URL}?${params.toString()}`, { mode: 'no-cors' });
