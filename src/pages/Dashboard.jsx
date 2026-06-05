@@ -20,7 +20,11 @@ import {
   Paper,
   Button,
   Snackbar,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -33,9 +37,11 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import BusinessIcon from '@mui/icons-material/Business';
 import TimerIcon from '@mui/icons-material/Timer';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import { taskService } from '../services/taskService';
 import UpdateTaskModal from '../components/UpdateTaskModal';
+import EditTaskModal from '../components/EditTaskModal';
 
 function Dashboard() {
   const theme = useTheme();
@@ -55,6 +61,13 @@ function Dashboard() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  // Task Edit & Delete States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
   // Fetch employees dynamically for the dropdown
   useEffect(() => {
@@ -159,6 +172,88 @@ function Dashboard() {
       });
     } finally {
       setIsSubmittingUpdate(false);
+    }
+  };
+
+  const handleEditClick = (task) => {
+    setSelectedTask({ ...task, employeeName: employee });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (editData) => {
+    setIsSubmittingEdit(true);
+    try {
+      const result = await taskService.editTask(editData);
+      if (result.status === 'success') {
+        setToast({
+          open: true,
+          message: result.message,
+          severity: 'success'
+        });
+        setIsEditModalOpen(false);
+        
+        // Clear local cache for old & new employee to force re-fetch
+        delete GlobalCache[editData.employeeName];
+        if (editData.newEmployeeName) {
+          delete GlobalCache[editData.newEmployeeName];
+        }
+        
+        fetchTasks(employee);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({
+        open: true,
+        message: err.message || 'Failed to edit task',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteClick = (task) => {
+    setTaskToDelete(task);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!taskToDelete) return;
+    setIsSubmittingDelete(true);
+    try {
+      // Speculatively remove task from state for instant feedback
+      const taskId = taskToDelete.taskId;
+      setTasks(prev => prev.filter(t => t.taskId !== taskId));
+      
+      const result = await taskService.deleteTask(taskId, employee);
+      if (result.status === 'success') {
+        setToast({
+          open: true,
+          message: result.message,
+          severity: 'success'
+        });
+        setIsDeleteConfirmOpen(false);
+        setTaskToDelete(null);
+        
+        // Remove from GlobalCache
+        if (GlobalCache[employee]) {
+          GlobalCache[employee] = GlobalCache[employee].filter(t => t.taskId !== taskId);
+        }
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({
+        open: true,
+        message: err.message || 'Failed to delete task',
+        severity: 'error'
+      });
+      fetchTasks(employee); // Restore state if API failed
+    } finally {
+      setIsSubmittingDelete(false);
     }
   };
 
@@ -449,9 +544,9 @@ function Dashboard() {
                           sx={{ fontWeight: 800, borderRadius: 1 }}
                         />
                       </Box>
-                      <Box sx={{ mt: 2 }}>
+                      <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                         <Button 
-                          fullWidth 
+                          fullWidth={!isTaskAssigner}
                           variant="outlined" 
                           color="primary" 
                           startIcon={<EditIcon />}
@@ -459,10 +554,34 @@ function Dashboard() {
                             setSelectedTask({ ...t, employeeName: employee });
                             setIsUpdateModalOpen(true);
                           }}
-                          sx={{ borderRadius: 2 }}
+                          sx={{ borderRadius: 2, flexGrow: 1 }}
                         >
                           Update Progress
                         </Button>
+                        {isTaskAssigner && (
+                          <>
+                            <IconButton 
+                              color="info" 
+                              onClick={() => handleEditClick(t)}
+                              sx={{ 
+                                border: `1px solid ${theme.palette.divider}`, 
+                                borderRadius: 2
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton 
+                              color="error" 
+                              onClick={() => handleDeleteClick(t)}
+                              sx={{ 
+                                border: `1px solid ${theme.palette.divider}`, 
+                                borderRadius: 2
+                              }}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </>
+                        )}
                       </Box>
                     </CardContent>
                   </Card>
@@ -481,6 +600,43 @@ function Dashboard() {
         onSubmit={handleUpdateSubmit}
         isSubmitting={isSubmittingUpdate}
       />
+
+      {/* Edit Task Modal */}
+      <EditTaskModal
+        task={selectedTask}
+        open={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={handleEditSubmit}
+        isSubmitting={isSubmittingEdit}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            p: 1,
+            bgcolor: 'background.paper'
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Delete Task?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Are you sure you want to delete the task <strong>"{taskToDelete?.workName}"</strong>? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setIsDeleteConfirmOpen(false)} color="inherit" disabled={isSubmittingDelete}>
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={isSubmittingDelete}>
+            {isSubmittingDelete ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Toast notifications */}
       <Snackbar

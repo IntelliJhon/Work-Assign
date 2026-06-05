@@ -15,7 +15,9 @@ import {
   Grid,
   Box,
   InputAdornment,
-  useTheme
+  useTheme,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import TimerIcon from '@mui/icons-material/Timer';
@@ -31,6 +33,8 @@ const UpdateTaskModal = ({ task, open, onClose, onSubmit, isSubmitting }) => {
     comment: ''
   });
 
+  const [invoiceSent, setInvoiceSent] = useState(false);
+
   useEffect(() => {
     if (task) {
       setFormData({
@@ -38,6 +42,7 @@ const UpdateTaskModal = ({ task, open, onClose, onSubmit, isSubmitting }) => {
         actualTime: task.actualTime !== undefined && task.actualTime !== null ? String(task.actualTime) : '0',
         comment: task.comment || ''
       });
+      setInvoiceSent(task.comment ? task.comment.includes("Invoice Sent to Customer") : false);
     }
   }, [task, open]);
 
@@ -51,12 +56,29 @@ const UpdateTaskModal = ({ task, open, onClose, onSubmit, isSubmitting }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    let finalComment = formData.comment;
+    if (formData.status === 'Completed') {
+      if (invoiceSent) {
+        if (!finalComment.includes("Invoice Sent to Customer")) {
+          finalComment = finalComment 
+            ? `Invoice Sent to Customer. ${finalComment}` 
+            : "Invoice Sent to Customer";
+        }
+      } else {
+        // Remove "Invoice Sent to Customer" prefix if unchecked
+        finalComment = finalComment
+          .replace("Invoice Sent to Customer. ", "")
+          .replace("Invoice Sent to Customer.", "")
+          .replace("Invoice Sent to Customer", "")
+          .trim();
+      }
+    }
     onSubmit({
       taskId: task.taskId,
       employeeName: task.employeeName,
       status: formData.status,
       actualTime: formData.actualTime,
-      comment: formData.comment
+      comment: finalComment
     });
   };
 
@@ -153,6 +175,29 @@ const UpdateTaskModal = ({ task, open, onClose, onSubmit, isSubmitting }) => {
                 }}
               />
             </Grid>
+
+            {/* Invoice Sent Checkbox */}
+            {formData.status === 'Completed' && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={invoiceSent}
+                      onChange={(e) => setInvoiceSent(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Invoice Sent to Customer"
+                  sx={{ 
+                    color: theme.palette.text.primary,
+                    '& .MuiFormControlLabel-label': {
+                      fontWeight: 600,
+                      fontSize: '0.95rem'
+                    }
+                  }}
+                />
+              </Grid>
+            )}
 
             {/* Comments Field */}
             <Grid item xs={12}>

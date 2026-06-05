@@ -289,6 +289,91 @@ export const taskService = {
     };
   },
 
+  /**
+   * Deletes a task from the Google Sheet database.
+   */
+  deleteTask: async (taskId, employeeName) => {
+    const payload = {
+      action: 'deleteTask',
+      taskId,
+      employeeName
+    };
+
+    let apiSuccess = false;
+    let apiError = null;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          apiSuccess = true;
+        } else {
+          apiError = data.message;
+        }
+      } else {
+        apiError = `HTTP ${response.status}`;
+      }
+    } catch (err) {
+      apiError = err.message;
+      console.warn("Delete API request failed:", err);
+    }
+
+    return {
+      status: apiSuccess ? 'success' : 'error',
+      message: apiSuccess ? "Task deleted in database" : `Failed to delete task (API note: ${apiError})`
+    };
+  },
+
+  /**
+   * Edits task details (and handles reassignment to another employee if changed).
+   */
+  editTask: async (payload) => {
+    const apiPayload = {
+      action: 'editTask',
+      ...payload
+    };
+
+    let apiSuccess = false;
+    let apiError = null;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(apiPayload),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          apiSuccess = true;
+        } else {
+          apiError = data.message;
+        }
+      } else {
+        apiError = `HTTP ${response.status}`;
+      }
+    } catch (err) {
+      apiError = err.message;
+      console.warn("Edit API request failed:", err);
+    }
+
+    return {
+      status: apiSuccess ? 'success' : 'error',
+      message: apiSuccess ? "Task updated in database" : `Failed to update task (API note: ${apiError})`
+    };
+  },
+
   // --- LOCAL FALLBACK STORAGE HELPERS ---
   getLocalUpdates: () => {
     try {
